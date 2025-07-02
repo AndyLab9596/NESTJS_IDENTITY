@@ -34,3 +34,6 @@ $ npm run test:cov
 nest g module users/users --flat --no-spec
 nest g controller users/users --flat --no-spec 
 nest g service users/users --flat --no-spec 
+
+## SETUP DATABASE
+npm install --save @nestjs/typeorm typeorm pg
