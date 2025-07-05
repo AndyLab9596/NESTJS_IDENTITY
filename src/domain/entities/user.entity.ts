@@ -1,5 +1,6 @@
-import { Column, Entity } from 'typeorm';
+import { Column, Entity, OneToMany } from 'typeorm';
 import { BaseEntity } from './base.entity';
+import { Session } from './session.entity';
 
 @Entity()
 export class User extends BaseEntity {
@@ -12,23 +13,16 @@ export class User extends BaseEntity {
     type: 'varchar',
     length: 96,
     nullable: false,
-  })
-  firstName: string;
-
-  @Column({
-    type: 'varchar',
-    length: 96,
-    nullable: false,
-  })
-  lastName: string;
-
-  @Column({
-    type: 'varchar',
-    length: 96,
-    nullable: false,
     unique: true,
   })
   email: string;
+
+  @Column({
+    type: 'boolean',
+    default: false,
+    nullable: false,
+  })
+  isVerified: boolean;
 
   @Column({
     type: 'varchar',
@@ -36,4 +30,7 @@ export class User extends BaseEntity {
     nullable: false,
   })
   password: string;
+
+  @OneToMany(() => Session, (session) => session.user)
+  sessions: Session[];
 }

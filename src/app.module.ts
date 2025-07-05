@@ -1,16 +1,17 @@
 import { Module } from '@nestjs/common';
-import { UsersModule } from './users/users.module';
 import { TypeOrmModule, TypeOrmModuleOptions } from '@nestjs/typeorm';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import configurations from './config';
 import { CONFIG_DB } from './config/constants';
 
+import { UsersModule } from './users/users.module';
+import { SesionModule } from './session/session.module';
+import { AuthModule } from './auth/auth.module';
+
 const ENV = process.env.NODE_ENV;
 
 @Module({
   imports: [
-    UsersModule,
-
     ConfigModule.forRoot({
       isGlobal: true,
       envFilePath: !ENV ? '.env' : `.env.${ENV}`,
@@ -26,8 +27,11 @@ const ENV = process.env.NODE_ENV;
         return config;
       },
     }),
+
+    UsersModule,
+    SesionModule,
+    AuthModule,
   ],
   controllers: [],
-  providers: [],
 })
 export class AppModule {}
