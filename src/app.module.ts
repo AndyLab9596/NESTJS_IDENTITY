@@ -2,11 +2,15 @@ import { Module } from '@nestjs/common';
 import { TypeOrmModule, TypeOrmModuleOptions } from '@nestjs/typeorm';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import configurations from './config';
-import { CONFIG_DB } from './config/constants';
+import { CONFIG_CACHE, CONFIG_DB } from './config/constants';
 
 import { UsersModule } from './users/users.module';
 import { SesionModule } from './session/session.module';
 import { AuthModule } from './auth/auth.module';
+
+import { CacheableMemory, CacheableMemoryOptions, Keyv } from 'cacheable';
+import { CacheModule } from '@nestjs/cache-manager';
+import { createKeyv } from '@keyv/redis';
 
 const ENV = process.env.NODE_ENV;
 
@@ -25,6 +29,31 @@ const ENV = process.env.NODE_ENV;
         const config = configService.get<TypeOrmModuleOptions>(CONFIG_DB);
         if (!config) throw new Error('Cannot start app without ORM config');
         return config;
+      },
+    }),
+
+    CacheModule.registerAsync({
+      isGlobal: true,
+      imports: [ConfigModule],
+      inject: [ConfigService],
+      useFactory: async (configService: ConfigService) => {
+        const config = configService.get<
+          // eslint-disable-next-line @typescript-eslint/no-redundant-type-constituents
+          CacheableMemoryOptions & { connect: string }
+        >(CONFIG_CACHE);
+        if (!config) throw new Error('Cannot start app without Cache config');
+
+        return {
+          stores: [
+            new Keyv({
+              store: new CacheableMemory({
+                ttl: config.ttl,
+                lruSize: config.lruSize,
+              }),
+            }),
+            createKeyv(config.connect),
+          ],
+        };
       },
     }),
 
