@@ -14,7 +14,7 @@ import { CACHE_MANAGER } from '@nestjs/cache-manager';
 import { Cache } from 'cache-manager';
 import { JwtService } from '@nestjs/jwt';
 import { v4 as uuidv4 } from 'uuid';
-import { Request, Response } from 'express';
+import { CookieOptions, Request, Response } from 'express';
 import { ConfigType } from '@nestjs/config';
 import jwtConfig from 'src/config/jwt.config';
 import {
@@ -22,10 +22,17 @@ import {
   PREFIX_TOKEN_IAT,
   REQUEST_USER,
 } from './constants/auth.constant';
+import { ITokenPayload } from './interfaces/tokenPayload.interface';
 
 @Injectable()
 export class AuthService {
-  private readonly MAX_AGE_COOKIE = 1000 * 60 * 60 * 24 * 7;
+  private readonly MAX_AGE_COOKIE = 1000 * 60 * 60 * 24 * 7; // 7 days
+  private readonly COOKIE_OPTIONS: CookieOptions = {
+    httpOnly: true,
+    secure: true,
+    sameSite: 'strict',
+    maxAge: this.MAX_AGE_COOKIE,
+  };
 
   constructor(
     @InjectRepository(User)
@@ -91,13 +98,7 @@ export class AuthService {
       iat: Math.floor(Date.now() / 1000), // milisecond -> second
     };
 
-    const accessToken = await this.jwtService.signAsync(payload, {
-      expiresIn: this.jwtConfiguration.accessTokenExpiresIn!,
-    });
-
-    const refreshToken = await this.jwtService.signAsync(payload, {
-      expiresIn: this.jwtConfiguration.refreshTokenExpiresIn!,
-    });
+    const { accessToken, refreshToken } = await this.createTokenPair(payload);
 
     await this.cacheManager.set(
       `${PREFIX_TOKEN_IAT}_${user.id}_${payload.jit}`,
@@ -161,25 +162,15 @@ export class AuthService {
       iat: Math.floor(Date.now() / 1000), // milisecond -> second
     };
 
-    const newAccessToken = await this.jwtService.signAsync(payload, {
-      expiresIn: this.jwtConfiguration.accessTokenExpiresIn!,
-    });
-
-    const newRefreshToken = await this.jwtService.signAsync(payload, {
-      expiresIn: this.jwtConfiguration.refreshTokenExpiresIn!,
-    });
+    const { accessToken: newAccessToken, refreshToken: newRefreshToken } =
+      await this.createTokenPair(payload);
 
     await this.cacheManager.set(
       `${PREFIX_TOKEN_IAT}_${requestUser.sub}_${payload.jit}`,
       newRefreshToken,
     );
 
-    response.cookie(COOKIE_REFRESH_TOKEN, newRefreshToken, {
-      httpOnly: true,
-      secure: true,
-      sameSite: 'strict',
-      maxAge: this.MAX_AGE_COOKIE,
-    });
+    response.cookie(COOKIE_REFRESH_TOKEN, newRefreshToken, this.COOKIE_OPTIONS);
 
     return {
       message: 'Sign in successfully',
@@ -188,6 +179,17 @@ export class AuthService {
         accessToken: newAccessToken,
       },
     };
+  }
+
+  private async createTokenPair(payload: ITokenPayload) {
+    const accessToken = await this.jwtService.signAsync(payload, {
+      expiresIn: this.jwtConfiguration.accessTokenExpiresIn!,
+    });
+
+    const refreshToken = await this.jwtService.signAsync(payload, {
+      expiresIn: this.jwtConfiguration.refreshTokenExpiresIn!,
+    });
+    return { accessToken, refreshToken };
   }
 
   private async findUserByEmail(email: string) {
