@@ -1,6 +1,5 @@
-import { Column, Entity, OneToMany } from 'typeorm';
+import { Column, Entity } from 'typeorm';
 import { BaseEntity } from './base.entity';
-import { Session } from './session.entity';
 
 @Entity()
 export class User extends BaseEntity {
@@ -30,7 +29,4 @@ export class User extends BaseEntity {
     nullable: false,
   })
   password: string;
-
-  @OneToMany(() => Session, (session) => session.user)
-  sessions: Session[];
 }

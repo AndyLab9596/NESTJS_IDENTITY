@@ -1,22 +1,33 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
+import { BadRequestException, Inject, Injectable } from '@nestjs/common';
 import { AuthRequestDto } from './dtos/request/AuthRequestDto';
 import { Repository } from 'typeorm';
 import { User } from 'src/domain/entities';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Session } from 'src/domain/entities/session.entity';
 import { HashingProviderService } from './providers/hashingPovider.service';
 import { CreatedResponseDto } from 'src/common/dtos/response/createdResponseDto';
+import { CACHE_MANAGER } from '@nestjs/cache-manager';
+import { Cache } from 'cache-manager';
+import { JwtService } from '@nestjs/jwt';
+import { v4 as uuidv4 } from 'uuid';
+import { Response } from 'express';
+import { ConfigType } from '@nestjs/config';
+import jwtConfig from 'src/config/jwt.config';
 
 @Injectable()
 export class AuthService {
+  private readonly MAX_AGE_COOKIE = 1000 * 60 * 60 * 24 * 7;
+
   constructor(
     @InjectRepository(User)
     private readonly userRepository: Repository<User>,
 
-    @InjectRepository(Session)
-    private readonly sessionRepository: Repository<Session>,
-
+    @Inject(CACHE_MANAGER) private cacheManager: Cache,
     private readonly hashingProviderService: HashingProviderService,
+
+    @Inject(jwtConfig.KEY)
+    private readonly jwtConfiguration: ConfigType<typeof jwtConfig>,
+
+    private readonly jwtService: JwtService,
   ) {}
 
   public async signUp(
@@ -35,7 +46,6 @@ export class AuthService {
     const user = this.userRepository.create({
       email: authSignUpRequestDto.email,
       password: hashedPassword,
-      sessions: [],
       isVerified: false,
     });
 
@@ -45,7 +55,10 @@ export class AuthService {
     };
   }
 
-  public async signIn(authSignInRequestDto: AuthRequestDto) {
+  public async signIn(
+    authSignInRequestDto: AuthRequestDto,
+    response: Response,
+  ) {
     const { email, password } = authSignInRequestDto;
     const user = await this.findUserByEmail(email);
     if (!user) {
@@ -54,13 +67,42 @@ export class AuthService {
 
     const isPasswordMatched = await this.hashingProviderService.comaprePassword(
       password,
-      user.email,
+      user.password,
     );
+
     if (!isPasswordMatched) {
       throw new BadRequestException('Invalid credential!');
     }
 
-    console.log(email, password);
+    const payload = {
+      sub: user.id,
+      email: user.email,
+      jit: uuidv4(),
+      iat: Math.floor(Date.now() / 1000),
+    };
+
+    const accessToken = await this.jwtService.signAsync(payload, {
+      expiresIn: this.jwtConfiguration.accessTokenExpiresIn!,
+    });
+
+    const refreshToken = await this.jwtService.signAsync(payload, {
+      expiresIn: this.jwtConfiguration.refreshTokenExpiresIn!,
+    });
+
+    response.cookie('refresh_token', refreshToken, {
+      httpOnly: true,
+      secure: true,
+      sameSite: 'strict',
+      maxAge: this.MAX_AGE_COOKIE,
+    });
+
+    return {
+      message: 'Sign in successfully',
+      data: {
+        userId: user.id,
+        accessToken,
+      },
+    };
   }
 
   private async findUserByEmail(email: string) {

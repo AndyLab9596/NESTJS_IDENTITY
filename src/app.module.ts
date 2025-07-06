@@ -5,7 +5,6 @@ import configurations from './config';
 import { CONFIG_CACHE, CONFIG_DB } from './config/constants';
 
 import { UsersModule } from './users/users.module';
-import { SesionModule } from './session/session.module';
 import { AuthModule } from './auth/auth.module';
 
 import { CacheableMemory, CacheableMemoryOptions, Keyv } from 'cacheable';
@@ -58,7 +57,6 @@ const ENV = process.env.NODE_ENV;
     }),
 
     UsersModule,
-    SesionModule,
     AuthModule,
   ],
   controllers: [],
