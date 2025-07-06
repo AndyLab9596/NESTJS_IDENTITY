@@ -23,6 +23,8 @@ import {
   REQUEST_USER,
 } from './constants/auth.constant';
 import { ITokenPayload } from './interfaces/tokenPayload.interface';
+import { ChangePasswordRequestDto } from './dtos/request/ChangePasswordRequestDto';
+import Redis from 'ioredis';
 
 @Injectable()
 export class AuthService {
@@ -39,7 +41,7 @@ export class AuthService {
     private readonly userRepository: Repository<User>,
 
     @Inject(CACHE_MANAGER) private cacheManager: Cache,
-
+    @Inject('REDIS_CLIENT') private readonly redisClient: Redis,
     private readonly hashingProviderService: HashingProviderService,
 
     @Inject(jwtConfig.KEY)
@@ -194,6 +196,80 @@ export class AuthService {
     //     sameSite: 'strict',
     //     maxAge: this.MAX_AGE_COOKIE,
     //   });
+  }
+
+  public async changePassword(
+    changePasswordRequestDto: ChangePasswordRequestDto,
+    request: Request,
+  ) {
+    const { currentPassword, newPassword } = changePasswordRequestDto;
+    if (currentPassword === newPassword) {
+      throw new BadRequestException(
+        'New password must be difference than the current password',
+      );
+    }
+
+    const requestUser = request[REQUEST_USER];
+
+    const user = await this.userRepository.findOneBy({
+      email: requestUser.email,
+    });
+
+    if (!user) {
+      throw new BadRequestException('Invalid credential!');
+    }
+
+    const isPasswordMatched = await this.hashingProviderService.comaprePassword(
+      currentPassword,
+      user.password,
+    );
+    if (!isPasswordMatched) {
+      throw new BadRequestException('Invalid credential!');
+    }
+
+    const hashedPassword =
+      await this.hashingProviderService.hashPassword(newPassword);
+
+    user.password = hashedPassword;
+    await this.userRepository.save(user);
+
+    // Sign out all user
+    await this.signOutAll(user.id);
+
+    return {
+      message: 'Update password successfully',
+      data: {
+        userId: user.id,
+      },
+    };
+  }
+
+  private async signOutAll(userId: string) {
+    const keys = await this.scanKeysByPattern(
+      `${PREFIX_TOKEN_IAT}_${userId}_*`,
+    );
+    if (keys.length > 0) {
+      await this.redisClient.del(...keys);
+    }
+  }
+
+  public async scanKeysByPattern(pattern: string): Promise<string[]> {
+    const keys: string[] = [];
+    let cursor = '0';
+
+    do {
+      const [nextCursor, matchedKeys] = await this.redisClient.scan(
+        cursor,
+        'MATCH',
+        pattern,
+        'COUNT',
+        100,
+      );
+      cursor = nextCursor;
+      keys.push(...matchedKeys);
+    } while (cursor !== '0');
+
+    return keys;
   }
 
   private async createTokenPair(payload: ITokenPayload) {
