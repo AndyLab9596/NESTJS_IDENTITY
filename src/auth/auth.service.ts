@@ -12,6 +12,10 @@ import { v4 as uuidv4 } from 'uuid';
 import { Response } from 'express';
 import { ConfigType } from '@nestjs/config';
 import jwtConfig from 'src/config/jwt.config';
+import {
+  COOKIE_REFRESH_TOKEN,
+  PREFIX_TOKEN_IAT,
+} from './constants/auth.constant';
 
 @Injectable()
 export class AuthService {
@@ -78,7 +82,7 @@ export class AuthService {
       sub: user.id,
       email: user.email,
       jit: uuidv4(),
-      iat: Math.floor(Date.now() / 1000),
+      iat: Math.floor(Date.now() / 1000), // milisecond -> second
     };
 
     const accessToken = await this.jwtService.signAsync(payload, {
@@ -89,7 +93,12 @@ export class AuthService {
       expiresIn: this.jwtConfiguration.refreshTokenExpiresIn!,
     });
 
-    response.cookie('refresh_token', refreshToken, {
+    await this.cacheManager.set(
+      `${PREFIX_TOKEN_IAT}_${user.id}_${payload.jit}`,
+      refreshToken,
+    );
+
+    response.cookie(COOKIE_REFRESH_TOKEN, refreshToken, {
       httpOnly: true,
       secure: true,
       sameSite: 'strict',
