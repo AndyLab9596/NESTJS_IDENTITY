@@ -3,11 +3,13 @@ import { Response } from 'express';
 import { CreatedResponseDto } from 'src/common/dtos/response/createdResponseDto';
 import { AuthService } from './auth.service';
 import { AuthRequestDto } from './dtos/request/AuthRequestDto';
+import { Public } from './decorators/public.decorator';
 
 @Controller('auth')
 export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
+  @Public()
   @Post('sign-up')
   public async signUp(
     @Body() authSignUpRequestDto: AuthRequestDto,
@@ -15,6 +17,7 @@ export class AuthController {
     return await this.authService.signUp(authSignUpRequestDto);
   }
 
+  @Public()
   @Post('sign-in')
   public async signIn(
     @Body() authSignInRequestDto: AuthRequestDto,

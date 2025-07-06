@@ -2,7 +2,7 @@ import { Module } from '@nestjs/common';
 import { TypeOrmModule, TypeOrmModuleOptions } from '@nestjs/typeorm';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import configurations from './config';
-import { CONFIG_CACHE, CONFIG_DB } from './config/constants';
+import { CONFIG_CACHE, CONFIG_DB, JWT } from './config/constants';
 
 import { UsersModule } from './users/users.module';
 import { AuthModule } from './auth/auth.module';
@@ -10,6 +10,9 @@ import { AuthModule } from './auth/auth.module';
 import { CacheableMemory, CacheableMemoryOptions, Keyv } from 'cacheable';
 import { CacheModule } from '@nestjs/cache-manager';
 import { createKeyv } from '@keyv/redis';
+import { APP_GUARD } from '@nestjs/core';
+import { AuthenticationGuard } from './auth/guard/authentication.guard';
+import { JwtModule } from '@nestjs/jwt';
 
 const ENV = process.env.NODE_ENV;
 
@@ -56,9 +59,27 @@ const ENV = process.env.NODE_ENV;
       },
     }),
 
+    JwtModule.registerAsync({
+      global: true,
+      imports: [ConfigModule],
+      inject: [ConfigService],
+      useFactory: async (configService: ConfigService) => {
+        return {
+          global: true,
+          secret: configService.get(JWT).secret,
+        };
+      },
+    }),
+
     UsersModule,
     AuthModule,
   ],
   controllers: [],
+  providers: [
+    {
+      provide: APP_GUARD,
+      useClass: AuthenticationGuard,
+    },
+  ],
 })
 export class AppModule {}
