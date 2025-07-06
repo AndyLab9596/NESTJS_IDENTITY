@@ -39,6 +39,7 @@ export class AuthService {
     private readonly userRepository: Repository<User>,
 
     @Inject(CACHE_MANAGER) private cacheManager: Cache,
+
     private readonly hashingProviderService: HashingProviderService,
 
     @Inject(jwtConfig.KEY)
@@ -179,6 +180,13 @@ export class AuthService {
         accessToken: newAccessToken,
       },
     };
+  }
+
+  public async signOut(request: Request) {
+    const requestUser = request[REQUEST_USER];
+    await this.cacheManager.del(
+      `${PREFIX_TOKEN_IAT}_${requestUser.sub}_${requestUser.jit}`,
+    );
   }
 
   private async createTokenPair(payload: ITokenPayload) {

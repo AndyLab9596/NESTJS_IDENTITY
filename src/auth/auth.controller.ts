@@ -1,9 +1,9 @@
-import { Body, Controller, Get, Post, Req, Res } from '@nestjs/common';
+import { Body, Controller, Post, Req, Res } from '@nestjs/common';
 import { Request, Response } from 'express';
 import { CreatedResponseDto } from 'src/common/dtos/response/createdResponseDto';
 import { AuthService } from './auth.service';
-import { AuthRequestDto } from './dtos/request/AuthRequestDto';
 import { Public } from './decorators/public.decorator';
+import { AuthRequestDto } from './dtos/request/AuthRequestDto';
 
 @Controller('auth')
 export class AuthController {
@@ -26,11 +26,26 @@ export class AuthController {
     return await this.authService.signIn(authSignInRequestDto, response);
   }
 
-  @Get('refresh-token')
+  @Post('refresh-token')
   public async refreshToken(
     @Req() request: Request,
     @Res({ passthrough: true }) response: Response,
   ) {
     return await this.authService.refreshToken(request, response);
+  }
+
+  @Post('change-password')
+  public async changePassword() {
+    // TODO
+  }
+
+  @Post('forgot-password')
+  public async forgotPassword() {
+    // TODO
+  }
+
+  @Post('sign-out')
+  public async signOut(@Req() request: Request) {
+    return await this.authService.signOut(request);
   }
 }
