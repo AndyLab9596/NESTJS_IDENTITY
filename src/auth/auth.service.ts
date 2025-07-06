@@ -187,6 +187,13 @@ export class AuthService {
     await this.cacheManager.del(
       `${PREFIX_TOKEN_IAT}_${requestUser.sub}_${requestUser.jit}`,
     );
+    // TODO: Will see if it is needed or not
+    // response.clearCookie(COOKIE_REFRESH_TOKEN, {
+    //     httpOnly: true,
+    //     secure: true,
+    //     sameSite: 'strict',
+    //     maxAge: this.MAX_AGE_COOKIE,
+    //   });
   }
 
   private async createTokenPair(payload: ITokenPayload) {
