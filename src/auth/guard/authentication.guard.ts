@@ -12,12 +12,14 @@ import { Request } from 'express';
 import jwtConfig from 'src/config/jwt.config';
 import {
   IS_PUBLIC_KEY,
+  IS_VERIFYING,
   PREFIX_TOKEN_IAT,
   REQUEST_USER,
 } from '../constants/auth.constant';
 import { Reflector } from '@nestjs/core';
 import { CACHE_MANAGER } from '@nestjs/cache-manager';
 import { Cache } from 'cache-manager';
+import { ITokenPayload } from '../interfaces/tokenPayload.interface';
 
 @Injectable()
 export class AuthenticationGuard implements CanActivate {
@@ -36,6 +38,12 @@ export class AuthenticationGuard implements CanActivate {
       context.getHandler(),
       context.getClass(),
     ]);
+
+    const isVerifying = this.reflector.getAllAndOverride<boolean>(
+      IS_VERIFYING,
+      [context.getHandler(), context.getClass()],
+    );
+
     if (isPublic) {
       return true;
     }
@@ -48,11 +56,13 @@ export class AuthenticationGuard implements CanActivate {
     }
 
     try {
-      const payload = await this.jwtService.verifyAsync(token, {
+      const payload: ITokenPayload = await this.jwtService.verifyAsync(token, {
         secret: this.jwtConfiguration.secret,
       });
 
       if (payload) {
+        if (!payload.isVerified && !isVerifying) return false;
+
         const key = `${PREFIX_TOKEN_IAT}_${payload.sub}_${payload.jit}`;
 
         // If user signed out, there's no refresh token with according sub and jit

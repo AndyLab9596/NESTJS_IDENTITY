@@ -21,6 +21,7 @@ import {
   COOKIE_REFRESH_TOKEN,
   PREFIX_TOKEN_IAT,
   REQUEST_USER,
+  USER_VERIFY_CODE,
 } from './constants/auth.constant';
 import { ITokenPayload } from './interfaces/tokenPayload.interface';
 import { ChangePasswordRequestDto } from './dtos/request/ChangePasswordRequestDto';
@@ -94,9 +95,10 @@ export class AuthService {
       throw new BadRequestException('Invalid credential!');
     }
 
-    const payload = {
+    const payload: ITokenPayload = {
       sub: user.id,
       email: user.email,
+      isVerified: user.isVerified,
       jit: uuidv4(),
       iat: Math.floor(Date.now() / 1000), // milisecond -> second
     };
@@ -119,6 +121,7 @@ export class AuthService {
       message: 'Sign in successfully',
       data: {
         userId: user.id,
+        isVerified: user.isVerified,
         accessToken,
       },
     };
@@ -158,9 +161,10 @@ export class AuthService {
       );
     }
 
-    const payload = {
+    const payload: ITokenPayload = {
       sub: requestUser.sub,
       email: requestUser.email,
+      isVerified: requestUser.isVerified,
       jit: uuidv4(),
       iat: Math.floor(Date.now() / 1000), // milisecond -> second
     };
@@ -244,6 +248,46 @@ export class AuthService {
     };
   }
 
+  public async sendVerifyUserCode(request: Request) {
+    const requestUser: ITokenPayload = request[REQUEST_USER];
+    const verifyCode = this.generateVerifyCode();
+    await this.cacheManager.set(
+      `${USER_VERIFY_CODE}_${requestUser.sub}`,
+      verifyCode,
+      1000 * 30, // 30s
+    );
+    // TEMP: LOG FOR TESTING
+    console.log('verifyCode::', verifyCode);
+    // SEND MAIL WITH VERIFY CODE
+    // THROTTLE FOR PREVENTING SPAM MAIL
+
+    return {
+      message: 'Send verify user code successfully',
+      data: null,
+    };
+  }
+
+  public async verifyUser(code: number, request: Request) {
+    const requestUser: ITokenPayload = request[REQUEST_USER];
+    const verifyCodeStored = await this.cacheManager.get(
+      `${USER_VERIFY_CODE}_${requestUser.sub}`,
+    );
+    if (!verifyCodeStored || code !== verifyCodeStored) {
+      throw new BadRequestException();
+    }
+
+    await this.userRepository.update(requestUser.sub, {
+      isVerified: true,
+    });
+
+    await this.cacheManager.del(`${USER_VERIFY_CODE}_${requestUser.sub}`);
+
+    return {
+      message: 'Verify user code successfully',
+      data: null,
+    };
+  }
+
   private async signOutAll(userId: string) {
     const keys = await this.scanKeysByPattern(
       `${PREFIX_TOKEN_IAT}_${userId}_*`,
@@ -286,5 +330,11 @@ export class AuthService {
   private async findUserByEmail(email: string) {
     const isUserWithEmailExist = await this.userRepository.findOneBy({ email });
     return isUserWithEmailExist;
+  }
+
+  private generateVerifyCode() {
+    const min = 100000; // Smallest 6-digit number
+    const max = 999999; // Largest 6-digit number
+    return Math.floor(Math.random() * (max - min + 1)) + min;
   }
 }
